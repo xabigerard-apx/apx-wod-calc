@@ -1,0 +1,17 @@
+{
+  "name": "APX WOD Calc",
+  "short_name": "APX Calc",
+  "description": "Calculatrice de temps et de rounds pour entraînements et WODs APX",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111116",
+  "theme_color": "#613795",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
