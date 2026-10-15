@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APX WOD Time Calculator</title>
+  
+  <!-- Manifest & Mobile Tags pour PWA / Plein écran Android -->
+  <meta name="theme-color" content="#613795">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            apx: {
+              DEFAULT: '#613795',
+              hover: '#7342b0',
+              active: '#502c7b',
+              light: '#8b5bc7',
+              dark: '#3f2164'
+            },
+            surface: {
+              900: '#111116',
+              800: '#181820',
+              700: '#22222d',
+              600: '#2c2c3b'
+            }
+          },
+          fontFamily: {
+            mono: ['SF Pro Mono', 'Menlo', 'Consolas', 'Roboto Mono', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    /* Empêche le rebond et la sélection de texte sur mobile */
+    body {
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Style des boutons au tap */
+    .btn-key {
+      transition: all 0.08s ease-out;
+    }
+    .btn-key:active {
+      transform: scale(0.94);
+      filter: brightness(1.2);
+    }
+
+    /* Scrollbar personnalisée discrète */
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111116;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2c2c3b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #613795;
+    }
+  </style>
+</head>
+<body class="bg-surface-900 text-white min-h-screen flex flex-col font-sans overflow-x-hidden antialiased">
+
+  <!-- Top Bar / Entête -->
+  <header class="w-full max-w-md mx-auto pt-3 px-4 pb-2 flex items-center justify-between border-b border-surface-700/50">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-apx-light to-apx flex items-center justify-center shadow-lg shadow-apx/30">
+        <i class="ph-bold ph-timer text-lg text-white"></i>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-sm tracking-wide uppercase text-gray-100 flex items-center gap-1.5">
+          APX <span class="text-apx-light font-medium text-xs">WOD Calc</span>
+        </h1>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <!-- Sélecteur de mode de saisie (Temps micro-onde vs Nombre/Round) -->
+      <button id="toggle-input-mode-btn" class="flex items-center gap-1.5 bg-surface-700/70 border border-surface-600/60 hover:border-apx text-xs px-2.5 py-1.5 rounded-lg text-gray-200 transition">
+        <i id="mode-icon" class="ph-bold ph-hourglass-simple-medium text-apx-light text-sm"></i>
+        <span id="mode-label" class="font-semibold">Temps (MM:SS)</span>
+      </button>
+
+      <!-- Bouton Tiroir Historique -->
+      <button id="btn-toggle-history" class="relative w-9 h-9 rounded-lg bg-surface-700/70 border border-surface-600/60 hover:bg-surface-600 flex items-center justify-center text-gray-300 hover:text-white transition">
+        <i class="ph-bold ph-clock-counter-clockwise text-base"></i>
+        <span id="history-badge" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-apx-light ring-2 ring-surface-900"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Conteneur Principal Responsive Mobile -->
+  <main class="w-full max-w-md mx-auto flex-1 flex flex-col justify-between p-3 sm:p-4">
+
+    <!-- Zone Écran / Display -->
+    <div class="w-full bg-surface-800/90 border border-surface-700/70 rounded-2xl p-4 mb-3 shadow-inner flex flex-col justify-end min-h-[140px] relative overflow-hidden">
+      <!-- Indicateur d'arrière-plan APX -->
+      <div class="absolute -right-8 -top-8 w-28 h-28 bg-apx/10 rounded-full blur-2xl pointer-events-none"></div>
+
+      <!-- Expression en cours (Historique du calcul) -->
+      <div id="expression-display" class="w-full text-right text-gray-400 font-mono text-xs sm:text-sm tracking-wide truncate min-h-[1.25rem] mb-1 select-all">
+        <!-- Rendu dynamique JS -->
+      </div>
+
+      <!-- Saisie actuelle ou Résultat en gros style micro-ondes -->
+      <div class="flex items-baseline justify-end gap-1 overflow-x-auto no-scrollbar">
+        <span id="current-display" class="font-mono text-4xl sm:text-5xl font-black tracking-tight text-white select-all">
+          0:00
+        </span>
+      </div>
+
+      <!-- Petit badge du type d'entrée en bas à gauche de l'écran avec bouton d'effacement rapide tactile -->
+      <div class="flex items-center justify-between mt-2 pt-2 border-t border-surface-700/40 text-[11px] text-gray-400">
+        <span id="unit-badge" class="flex items-center gap-1 font-semibold text-apx-light">
+          <i class="ph-fill ph-circle text-[8px] text-apx"></i> Saisie MM:SS
+        </span>
+        <div class="flex items-center gap-2">
+          <button id="quick-backspace-btn" title="Effacer le dernier chiffre" class="text-amber-400 hover:text-amber-300 bg-surface-700/60 hover:bg-surface-600 px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 transition">
+            <i class="ph-bold ph-backspace"></i> Corriger
+          </button>
+          <span id="eval-status" class="text-gray-500 font-mono text-[10px]">PRET</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panneau Clavier / Boutons tactiles -->
+    <div class="grid grid-cols-4 gap-2 sm:gap-2.5 select-none">
+      
+      <!-- LIGNE 1 : Fonctions d'action (AC, DEL, () ) et ÷ tout à droite -->
+      <button data-action="all-clear" class="btn-key bg-red-950/40 hover:bg-red-900/50 border border-red-800/40 text-red-300 font-bold text-sm sm:text-base py-3 sm:py-3.5 rounded-xl shadow">
+        AC
+      </button>
+      <button data-action="backspace" class="btn-key bg-amber-950/40 hover:bg-amber-900/50 border border-amber-700/50 text-amber-300 font-black text-sm sm:text-base py-3 sm:py-3.5 rounded-xl shadow flex items-center justify-center gap-1">
+        <i class="ph-bold ph-backspace text-lg"></i>
+        <span>DEL</span>
+      </button>
+      <button data-action="smart-bracket" class="btn-key bg-surface-700/70 hover:bg-surface-600 border border-surface-600 text-gray-200 font-bold text-lg py-3 sm:py-3.5 rounded-xl shadow flex items-center justify-center gap-0.5">
+        <span>( )</span>
+      </button>
+      <button data-action="operator" data-val="/" class="btn-key bg-apx hover:bg-apx-hover text-white font-black text-xl py-3 sm:py-3.5 rounded-xl shadow shadow-apx/20">
+        ÷
+      </button>
+
+      <!-- LIGNE 2 : 7, 8, 9, × -->
+      <button data-action="digit" data-val="7" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        7
+      </button>
+      <button data-action="digit" data-val="8" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        8
+      </button>
+      <button data-action="digit" data-val="9" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        9
+      </button>
+      <button data-action="operator" data-val="*" class="btn-key bg-apx hover:bg-apx-hover text-white font-black text-xl py-3 sm:py-3.5 rounded-xl shadow shadow-apx/20">
+        ×
+      </button>
+
+      <!-- LIGNE 3 : 4, 5, 6, − -->
+      <button data-action="digit" data-val="4" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        4
+      </button>
+      <button data-action="digit" data-val="5" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        5
+      </button>
+      <button data-action="digit" data-val="6" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        6
+      </button>
+      <button data-action="operator" data-val="-" class="btn-key bg-apx hover:bg-apx-hover text-white font-black text-xl py-3 sm:py-3.5 rounded-xl shadow shadow-apx/20">
+        −
+      </button>
+
+      <!-- LIGNE 4 : 1, 2, 3, + -->
+      <button data-action="digit" data-val="1" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        1
+      </button>
+      <button data-action="digit" data-val="2" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        2
+      </button>
+      <button data-action="digit" data-val="3" class="btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        3
+      </button>
+      <button data-action="operator" data-val="+" class="btn-key bg-apx hover:bg-apx-hover text-white font-black text-xl py-3 sm:py-3.5 rounded-xl shadow shadow-apx/20">
+        +
+      </button>
+
+      <!-- LIGNE 5 : Rounds # à gauche, le 0 sur 2 colonnes, et = à l'extrême droite -->
+      <button data-action="toggle-mode" class="btn-key bg-surface-700/80 hover:bg-surface-600 border border-surface-600/80 text-gray-200 font-bold text-xs py-3 sm:py-3.5 rounded-xl flex flex-col items-center justify-center gap-0.5">
+        <i class="ph-bold ph-arrows-left-right text-apx-light text-sm"></i>
+        <span id="quick-mode-text" class="text-[10px] tracking-tight">Rounds #</span>
+      </button>
+
+      <button data-action="digit" data-val="0" class="col-span-2 btn-key bg-surface-800 hover:bg-surface-700 border border-surface-700/80 text-white font-mono text-2xl font-bold py-3 sm:py-3.5 rounded-xl shadow">
+        0
+      </button>
+
+      <button data-action="calculate" class="btn-key bg-gradient-to-r from-apx to-apx-light hover:brightness-110 active:brightness-95 text-white font-black text-2xl py-3 sm:py-3.5 rounded-xl shadow-lg shadow-apx/40 flex items-center justify-center">
+        =
+      </button>
+    </div>
+
+    <!-- Astuce rapide d'utilisation WOD -->
+    <div class="mt-3 text-center text-[11px] text-gray-500 flex items-center justify-center gap-2">
+      <span>💡 Tape <b>1-3-0</b> pour 1:30</span>
+      <span>•</span>
+      <span><b>Mode #</b> pour les rounds</span>
+    </div>
+  </main>
+
+  <!-- TIROIR LATÉRAL / MODAL HISTORIQUE -->
+  <aside id="history-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-surface-900 border-l border-surface-700/80 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <!-- Header Tiroir -->
+    <div class="p-4 border-b border-surface-700 flex items-center justify-between bg-surface-800/80">
+      <div class="flex items-center gap-2">
+        <i class="ph-bold ph-clock-counter-clockwise text-apx-light text-lg"></i>
+        <h2 class="font-bold text-sm tracking-wide text-gray-200 uppercase">Historique des calculs</h2>
+      </div>
+      <button id="btn-close-history" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center">
+        <i class="ph-bold ph-x text-base"></i>
+      </button>
+    </div>
+
+    <!-- Liste d'historique -->
+    <div id="history-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+      <!-- Rendu dynamique JS -->
+      <div id="empty-history" class="text-center py-16 text-gray-500 text-sm">
+        <i class="ph-duotone ph-clipboard-text text-4xl mb-2 text-surface-600 block"></i>
+        Aucun calcul enregistré.
+      </div>
+    </div>
+
+    <!-- Footer Tiroir -->
+    <div class="p-3 border-t border-surface-700 bg-surface-800/60 flex items-center justify-between gap-2">
+      <button id="btn-clear-history" class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-700 hover:bg-red-950/40 text-gray-400 hover:text-red-400 border border-surface-600 text-xs font-semibold transition">
+        <i class="ph-bold ph-trash"></i> Vider l'historique
+      </button>
+    </div>
+  </aside>
+
+  <!-- Overlay sombre pour fermer l'historique -->
+  <div id="drawer-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden transition-opacity duration-300 opacity-0"></div>
+
+  <!-- Notifications discrètes (Toasts) -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface-700 border border-apx-light/40 text-white text-xs font-semibold py-2 px-4 rounded-full shadow-xl opacity-0 pointer-events-none transition-all duration-300 z-50 flex items-center gap-2">
+    <i class="ph-fill ph-check-circle text-apx-light"></i>
+    <span id="toast-msg">Action effectuée</span>
+  </div>
+
+  <!-- APPLICATION LOGIC -->
+  <script>
+    /**
+     * APX WOD Time Calculator
+     * Saisie type micro-ondes (ex: 45 -> 0:45, 130 -> 1:30)
+     * Opérations avec Rounds / Intervalles et arrondi à la seconde.
+     */
+
+    // État de l'application
+    const state = {
+      // Tokens de l'expression mathématique en cours
+      // Exemple de token : { type: 'time', value: 90, rawText: '1:30' }
+      // ou { type: 'number', value: 5, rawText: '5' }
+      // ou { type: 'operator', val: '+' }
+      tokens: [],
+
+      // Tampon de saisie actuel (chiffres bruts tapés par l'utilisateur)
+      rawDigits: '',
+
+      // Mode d'entrée actuel : 'time' (Micro-ondes MM:SS) ou 'number' (Rounds / Entier)
+      inputMode: 'time',
+
+      // Dernier résultat calculé (en secondes pour le temps, ou scalaire)
+      lastResult: null,
+
+      // Historique local
+      history: []
+    };
+
+    // Sélecteurs DOM
+    const expressionDisplay = document.getElementById('expression-display');
+    const currentDisplay = document.getElementById('current-display');
+    const unitBadge = document.getElementById('unit-badge');
+    const evalStatus = document.getElementById('eval-status');
+    const toggleInputModeBtn = document.getElementById('toggle-input-mode-btn');
+    const modeLabel = document.getElementById('mode-label');
+    const modeIcon = document.getElementById('mode-icon');
+    const quickModeText = document.getElementById('quick-mode-text');
+    const quickBackspaceBtn = document.getElementById('quick-backspace-btn');
+    const historyDrawer = document.getElementById('history-drawer');
+    const drawerOverlay = document.getElementById('drawer-overlay');
+    const btnToggleHistory = document.getElementById('btn-toggle-history');
+    const btnCloseHistory = document.getElementById('btn-close-history');
+    const btnClearHistory = document.getElementById('btn-clear-history');
+    const historyList = document.getElementById('history-list');
+    const historyBadge = document.getElementById('history-badge');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+
+    // --- Formatage & Utilitaires de Temps ---
+
+    /**
+     * Convertit une chaîne de chiffres style micro-ondes en objet { minutes, seconds, totalSeconds }
+     * Ex: "" -> 0:00
+     *     "5" -> 0:05
+     *     "45" -> 0:45
+     *     "130" -> 1:30
+     *     "1230" -> 12:30
+     */
+    function parseMicrowaveTime(digits) {
+      if (!digits || digits === '') return { minutes: 0, seconds: 0, totalSeconds: 0, formatted: '0:00' };
+
+      // Nettoie les zéros initiaux superflus sauf s'il n'y a qu'un zéro
+      const cleaned = digits.replace(/^0+/, '') || '0';
+      
+      let sec = 0;
+      let min = 0;
+
+      if (cleaned.length <= 2) {
+        sec = parseInt(cleaned, 10) || 0;
+      } else {
+        sec = parseInt(cleaned.slice(-2), 10) || 0;
+        min = parseInt(cleaned.slice(0, -2), 10) || 0;
+      }
+
+      // Formatage visuel avec 2 chiffres pour les secondes
+      const formatted = `${min}:${sec < 10 ? '0' + sec : sec}`;
+      const totalSeconds = (min * 60) + sec;
+
+      return { minutes: min, seconds: sec, totalSeconds, formatted };
+    }
+
+    /**
+     * Convertit des secondes globales en chaîne MM:SS
+     * Supporte aussi les valeurs négatives avec signe -
+     */
+    function formatSecondsToMMSS(totalSec) {
+      const isNegative = totalSec < 0;
+      let abs = Math.abs(Math.round(totalSec));
+      const min = Math.floor(abs / 60);
+      const sec = abs % 60;
+      return `${isNegative ? '-' : ''}${min}:${sec < 10 ? '0' + sec : sec}`;
+    }
+
+    // --- Affichage & Rendu UI ---
+
+    function showToast(message) {
+      toastMsg.textContent = message;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2000);
+    }
+
+    function updateModeUI() {
+      if (state.inputMode === 'time') {
+        modeLabel.textContent = 'Temps (MM:SS)';
+        modeIcon.className = 'ph-bold ph-hourglass-simple-medium text-apx-light text-sm';
+        unitBadge.innerHTML = '<i class="ph-fill ph-circle text-[8px] text-apx"></i> Saisie MM:SS (Micro-onde)';
+        quickModeText.textContent = 'Rounds #';
+      } else {
+        modeLabel.textContent = 'Nombre / Round';
+        modeIcon.className = 'ph-bold ph-hash text-amber-400 text-sm';
+        unitBadge.innerHTML = '<i class="ph-fill ph-circle text-[8px] text-amber-400"></i> Saisie Nombre / Rounds';
+        quickModeText.textContent = 'Temps ⏱';
+      }
+      renderCurrentInput();
+    }
+
+    function renderCurrentInput() {
+      if (state.inputMode === 'time') {
+        if (state.rawDigits === '') {
+          currentDisplay.textContent = '0:00';
+          currentDisplay.classList.add('text-gray-500');
+          currentDisplay.classList.remove('text-white');
+        } else {
+          const parsed = parseMicrowaveTime(state.rawDigits);
+          currentDisplay.textContent = parsed.formatted;
+          currentDisplay.classList.remove('text-gray-500');
+          currentDisplay.classList.add('text-white');
+        }
+      } else {
+        // Mode nombre / round standard
+        if (state.rawDigits === '') {
+          currentDisplay.textContent = '0';
+          currentDisplay.classList.add('text-gray-500');
+          currentDisplay.classList.remove('text-white');
+        } else {
+          currentDisplay.textContent = state.rawDigits;
+          currentDisplay.classList.remove('text-gray-500');
+          currentDisplay.classList.add('text-white');
+        }
+      }
+    }
+
+    function renderExpression() {
+      if (state.tokens.length === 0) {
+        expressionDisplay.innerHTML = '&nbsp;';
+        return;
+      }
+
+      let html = '';
+      state.tokens.forEach(tok => {
+        if (tok.type === 'operator') {
+          let symbol = tok.val;
+          if (symbol === '*') symbol = '×';
+          if (symbol === '/') symbol = '÷';
+          if (symbol === '-') symbol = '−';
+          html += ` <span class="text-apx-light font-bold px-1">${symbol}</span> `;
+        } else if (tok.type === 'bracket') {
+          html += `<span class="text-gray-300 font-bold px-0.5">${tok.val}</span>`;
+        } else if (tok.type === 'time') {
+          html += `<span class="text-white bg-surface-700/80 px-1.5 py-0.5 rounded text-xs border border-surface-600">${tok.display}</span>`;
+        } else if (tok.type === 'number') {
+          html += `<span class="text-amber-300 font-semibold px-1">${tok.display}</span>`;
+        }
+      });
+
+      expressionDisplay.innerHTML = html;
+    }
+
+    // --- Validation & Injection de Tokens ---
+
+    /**
+     * Valide et committe le chiffre/temps actuellement tapé dans le tableau de tokens
+     */
+    function commitCurrentInputIfNeeded() {
+      if (state.rawDigits === '') return false;
+
+      if (state.inputMode === 'time') {
+        const parsed = parseMicrowaveTime(state.rawDigits);
+        state.tokens.push({
+          type: 'time',
+          seconds: parsed.totalSeconds,
+          display: parsed.formatted
+        });
+      } else {
+        const num = parseFloat(state.rawDigits) || 0;
+        state.tokens.push({
+          type: 'number',
+          value: num,
+          display: `${num}`
+        });
+      }
+
+      state.rawDigits = '';
+      return true;
+    }
+
+    function handleDigit(digit) {
+      evalStatus.textContent = 'SAISIE';
+      evalStatus.classList.remove('text-green-400', 'text-red-400');
+      evalStatus.classList.add('text-gray-400');
+
+      // Limiter la taille pour éviter les débordements
+      if (state.rawDigits.length >= 7) return;
+
+      // Si c'est le premier chiffre et que c'est un '0' en mode nombre simple
+      if (state.inputMode === 'number' && state.rawDigits === '0') {
+        state.rawDigits = digit;
+      } else {
+        state.rawDigits += digit;
+      }
+      renderCurrentInput();
+    }
+
+    function handleBackspace() {
+      // 1. Si on a des chiffres en cours de frappe
+      if (state.rawDigits.length > 0) {
+        state.rawDigits = state.rawDigits.slice(0, -1);
+        renderCurrentInput();
+        evalStatus.textContent = state.rawDigits.length > 0 ? 'CORRECTION' : 'PRET';
+        evalStatus.classList.remove('text-green-400', 'text-red-400');
+        evalStatus.classList.add('text-amber-400');
+      } 
+      // 2. Si le buffer actuel est vide mais qu'on a déjà entré des éléments dans la formule
+      else if (state.tokens.length > 0) {
+        const popped = state.tokens.pop();
+        
+        // Si c'était une valeur de temps ou de nombre, on la recharge dans les chiffres bruts
+        // pour que l'utilisateur puisse modifier le dernier chiffre sans tout retaper !
+        if (popped.type === 'time') {
+          const min = Math.floor(popped.seconds / 60);
+          const sec = popped.seconds % 60;
+          const secStr = sec < 10 ? '0' + sec : `${sec}`;
+          const combined = `${min > 0 ? min : ''}${secStr}`;
+          // On retire le dernier chiffre de la valeur rappelée
+          state.rawDigits = combined.slice(0, -1);
+          state.inputMode = 'time';
+          updateModeUI();
+        } else if (popped.type === 'number') {
+          const numStr = `${popped.value}`;
+          state.rawDigits = numStr.slice(0, -1);
+          state.inputMode = 'number';
+          updateModeUI();
+        }
+        
+        renderExpression();
+        renderCurrentInput();
+        evalStatus.textContent = 'EFFACÉ';
+        evalStatus.classList.remove('text-green-400', 'text-red-400');
+        evalStatus.classList.add('text-amber-400');
+      } 
+      // 3. Si tout est déjà vide mais qu'il y a un résultat précédent
+      else if (state.lastResult !== null) {
+        handleAllClear();
+      }
+    }
+
+    function handleAllClear() {
+      state.tokens = [];
+      state.rawDigits = '';
+      state.lastResult = null;
+      evalStatus.textContent = 'RESET';
+      evalStatus.classList.remove('text-green-400', 'text-red-400');
+      evalStatus.classList.add('text-gray-400');
+      renderExpression();
+      renderCurrentInput();
+    }
+
+    function handleOperator(op) {
+      // 1. Si l'utilisateur avait tapé des chiffres, on les valide
+      const committed = commitCurrentInputIfNeeded();
+
+      // 2. Si aucun chiffre n'était tapé mais qu'on a un résultat précédent (=)
+      if (!committed && state.tokens.length === 0 && state.lastResult !== null) {
+        state.tokens.push(state.lastResult);
+      }
+
+      // 3. Si on n'a toujours rien dans tokens, impossible de poser un opérateur
+      if (state.tokens.length === 0) return;
+
+      const lastToken = state.tokens[state.tokens.length - 1];
+
+      // 4. Si le dernier token est déjà un opérateur, on remplace simplement par le nouveau
+      if (lastToken.type === 'operator') {
+        lastToken.val = op;
+      } else if (lastToken.type === 'bracket' && lastToken.val === '(') {
+        // Cas particulier : opérateur '-' pour un nombre négatif après une parenthèse ouvrante
+        if (op === '-') {
+          // On laisse entrer le moins comme opérateur ou on ignore
+          return;
+        }
+        return;
+      } else {
+        // Ajout normal de l'opérateur
+        state.tokens.push({ type: 'operator', val: op });
+      }
+
+      // Pour simplifier l'ergonomie : lors d'une multiplication (*) ou division (/),
+      // il est très fréquent en WOD de vouloir entrer un nombre de rounds/intervalles (ex: 2:00 * 5)
+      // On bascule donc intelligemment en mode nombre si l'utilisateur le souhaite
+      if (op === '*' || op === '/') {
+        state.inputMode = 'number';
+        updateModeUI();
+      } else {
+        // Pour une addition ou soustraction, on reste généralement sur du temps
+        state.inputMode = 'time';
+        updateModeUI();
+      }
+
+      evalStatus.textContent = 'OPÉRATION';
+      evalStatus.classList.remove('text-green-400', 'text-red-400');
+      evalStatus.classList.add('text-gray-400');
+
+      renderExpression();
+      renderCurrentInput();
+    }
+
+    function handleSmartBracket() {
+      // Compte des parenthèses actuellement dans l'expression
+      const openCount = state.tokens.filter(t => t.type === 'bracket' && t.val === '(').length;
+      const closeCount = state.tokens.filter(t => t.type === 'bracket' && t.val === ')').length;
+      const hasUnclosedBracket = openCount > closeCount;
+
+      // Détermine si on doit fermer ou ouvrir
+      // Exactement comme sur Samsung :
+      // On ferme si une parenthèse est ouverte ET qu'on a déjà tapé un nombre/temps après l'ouverture
+      if (hasUnclosedBracket) {
+        if (state.rawDigits !== '') {
+          // On valide la saisie et on ferme la parenthèse
+          commitCurrentInputIfNeeded();
+          state.tokens.push({ type: 'bracket', val: ')' });
+        } else if (state.tokens.length > 0) {
+          const last = state.tokens[state.tokens.length - 1];
+          if (last.type === 'time' || last.type === 'number' || (last.type === 'bracket' && last.val === ')')) {
+            // Le dernier élément était une valeur ou déjà une fermeture, on ferme
+            state.tokens.push({ type: 'bracket', val: ')' });
+          } else {
+            // Le dernier élément est un opérateur (ex: "+ ( 2 + ") -> on ouvre une sous-parenthèse
+            state.tokens.push({ type: 'bracket', val: '(' });
+          }
+        } else {
+          state.tokens.push({ type: 'bracket', val: '(' });
+        }
+      } else {
+        // Aucune parenthèse ouverte : on en ouvre une !
+        // Si on tape '(' alors qu'un chiffre ou une valeur précédait, on insère une multiplication implicite
+        if (state.rawDigits !== '') {
+          commitCurrentInputIfNeeded();
+          state.tokens.push({ type: 'operator', val: '*' });
+        } else if (state.tokens.length > 0) {
+          const last = state.tokens[state.tokens.length - 1];
+          if (last.type === 'time' || last.type === 'number' || (last.type === 'bracket' && last.val === ')')) {
+            state.tokens.push({ type: 'operator', val: '*' });
+          }
+        }
+        state.tokens.push({ type: 'bracket', val: '(' });
+      }
+
+      renderExpression();
+      renderCurrentInput();
+    }
+
+    // --- Moteur de Calcul Mathématique Typé (Temps vs Rounds) ---
+
+    /**
+     * Évalue les tokens en respectant :
+     * 1. Priorités d'opérations (*, / avant +, -)
+     * 2. Les parenthèses récursives
+     * 3. Les types :
+     *    - Time + Time = Time
+     *    - Time - Time = Time
+     *    - Time * Number = Time (ex: 2:00 * 5 rounds = 10:00)
+     *    - Number * Time = Time
+     *    - Time / Number = Time arrondi à la seconde (ex: 5:00 / 2 = 2:30)
+     *    - Time / Time = Number (ex: 10:00 / 2:00 = 5 rounds)
+     *    - Number + Number = Number
+     *    - Number * Number = Number
+     */
+    function evaluateExpression(tokensList) {
+      if (!tokensList || tokensList.length === 0) return null;
+
+      // Résolution des parenthèses
+      let working = [...tokensList];
+      while (true) {
+        let openIndex = -1;
+        let closeIndex = -1;
+
+        for (let i = 0; i < working.length; i++) {
+          if (working[i].type === 'bracket' && working[i].val === '(') {
+            openIndex = i;
+          } else if (working[i].type === 'bracket' && working[i].val === ')') {
+            if (openIndex !== -1) {
+              closeIndex = i;
+              break;
+            }
+          }
+        }
+
+        if (openIndex !== -1 && closeIndex !== -1) {
+          const subExpr = working.slice(openIndex + 1, closeIndex);
+          const subResult = evaluateFlatExpression(subExpr);
+          if (subResult === null) throw new Error("Erreur dans les parenthèses");
+          working.splice(openIndex, closeIndex - openIndex + 1, subResult);
+        } else {
+          break;
+        }
+      }
+
+      return evaluateFlatExpression(working);
+    }
+
+    function evaluateFlatExpression(list) {
+      if (list.length === 0) return null;
+      if (list.length === 1) return list[0];
+
+      let working = [...list];
+
+      // Passe 1 : Multiplications et Divisions (* et /)
+      for (let i = 0; i < working.length; i++) {
+        if (working[i].type === 'operator' && (working[i].val === '*' || working[i].val === '/')) {
+          const left = working[i - 1];
+          const op = working[i].val;
+          const right = working[i + 1];
+
+          if (!left || !right) throw new Error("Opérateur sans opérande");
+
+          const res = computeBinary(left, op, right);
+          working.splice(i - 1, 3, res);
+          i--; // Ajuster l'indice
+        }
+      }
+
+      // Passe 2 : Additions et Soustractions (+ et -)
+      for (let i = 0; i < working.length; i++) {
+        if (working[i].type === 'operator' && (working[i].val === '+' || working[i].val === '-')) {
+          const left = working[i - 1];
+          const op = working[i].val;
+          const right = working[i + 1];
+
+          if (!left || !right) throw new Error("Opérateur sans opérande");
+
+          const res = computeBinary(left, op, right);
+          working.splice(i - 1, 3, res);
+          i--;
+        }
+      }
+
+      return working[0];
+    }
+
+    function computeBinary(left, op, right) {
+      // 1. Les deux sont des temps (Seconds)
+      if (left.type === 'time' && right.type === 'time') {
+        if (op === '+') {
+          const total = left.seconds + right.seconds;
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '-') {
+          const total = left.seconds - right.seconds;
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '/') {
+          // Diviser un temps par un temps = un ratio / nombre de rounds !
+          if (right.seconds === 0) throw new Error("Division par zéro");
+          const ratio = Math.round((left.seconds / right.seconds) * 100) / 100;
+          return { type: 'number', value: ratio, display: `${ratio}` };
+        }
+        if (op === '*') {
+          // Temps * Temps n'a pas de sens physique direct, on traite right comme un multiplicateur scalaire
+          const total = Math.round(left.seconds * right.seconds);
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+      }
+
+      // 2. Temps et Nombre
+      if (left.type === 'time' && right.type === 'number') {
+        if (op === '*') {
+          const total = Math.round(left.seconds * right.value);
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '/') {
+          if (right.value === 0) throw new Error("Division par zéro");
+          // Arrondi à la seconde la plus proche selon la demande !
+          const total = Math.round(left.seconds / right.value);
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '+') {
+          // Si on ajoute un nombre à un temps, on l'interprète comme des secondes ou rounds
+          const total = left.seconds + right.value;
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '-') {
+          const total = left.seconds - right.value;
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+      }
+
+      // 3. Nombre et Temps (ex: 5 * 1:30)
+      if (left.type === 'number' && right.type === 'time') {
+        if (op === '*') {
+          const total = Math.round(left.value * right.seconds);
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+        if (op === '+') {
+          const total = left.value + right.seconds;
+          return { type: 'time', seconds: total, display: formatSecondsToMMSS(total) };
+        }
+      }
+
+      // 4. Nombre et Nombre
+      if (left.type === 'number' && right.type === 'number') {
+        let val = 0;
+        if (op === '+') val = left.value + right.value;
+        if (op === '-') val = left.value - right.value;
+        if (op === '*') val = left.value * right.value;
+        if (op === '/') {
+          if (right.value === 0) throw new Error("Division par zéro");
+          val = Math.round((left.value / right.value) * 100) / 100;
+        }
+        return { type: 'number', value: val, display: `${val}` };
+      }
+
+      throw new Error("Opération impossible");
+    }
+
+    function handleCalculate() {
+      try {
+        commitCurrentInputIfNeeded();
+
+        if (state.tokens.length === 0) return;
+
+        // Fermer automatiquement les parenthèses restantes
+        const openCount = state.tokens.filter(t => t.type === 'bracket' && t.val === '(').length;
+        const closeCount = state.tokens.filter(t => t.type === 'bracket' && t.val === ')').length;
+        for (let i = 0; i < (openCount - closeCount); i++) {
+          state.tokens.push({ type: 'bracket', val: ')' });
+        }
+
+        // Sauvegarde de l'expression textuelle pour l'historique
+        const fullExprHtml = expressionDisplay.innerHTML;
+        const fullExprText = state.tokens.map(t => {
+          if (t.type === 'operator') {
+            return t.val === '*' ? '×' : (t.val === '/' ? '÷' : t.val);
+          }
+          return t.display || t.val;
+        }).join(' ');
+
+        const finalToken = evaluateExpression(state.tokens);
+
+        if (!finalToken) return;
+
+        state.lastResult = finalToken;
+
+        // Mise à jour de l'écran principal
+        if (finalToken.type === 'time') {
+          currentDisplay.textContent = formatSecondsToMMSS(finalToken.seconds);
+          currentDisplay.classList.remove('text-gray-500');
+          currentDisplay.classList.add('text-white');
+        } else {
+          currentDisplay.textContent = `${finalToken.value}`;
+          currentDisplay.classList.remove('text-gray-500');
+          currentDisplay.classList.add('text-white');
+        }
+
+        evalStatus.textContent = 'COMPLÉTÉ';
+        evalStatus.classList.remove('text-gray-400', 'text-red-400');
+        evalStatus.classList.add('text-green-400');
+
+        // Ajout à l'historique
+        addToHistory({
+          id: Date.now(),
+          expression: fullExprText,
+          result: finalToken,
+          timeStr: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+
+        // Nettoie les tokens pour le calcul suivant
+        state.tokens = [];
+        state.rawDigits = '';
+
+      } catch (err) {
+        console.error(err);
+        evalStatus.textContent = 'ERREUR';
+        evalStatus.classList.remove('text-gray-400', 'text-green-400');
+        evalStatus.classList.add('text-red-400');
+        showToast("Erreur de calcul");
+      }
+    }
+
+    // --- Gestion de l'Historique Local (localStorage) ---
+
+    const STORAGE_KEY = 'apx_wod_calc_history_v1';
+
+    function loadHistory() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          state.history = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn("Impossible de charger l'historique", e);
+        state.history = [];
+      }
+      renderHistoryUI();
+    }
+
+    function saveHistory() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.history));
+      } catch (e) {
+        console.warn("Erreur de sauvegarde locale", e);
+      }
+    }
+
+    function addToHistory(item) {
+      // Conserve les 40 derniers calculs
+      state.history.unshift(item);
+      if (state.history.length > 40) {
+        state.history.pop();
+      }
+      saveHistory();
+      renderHistoryUI();
+    }
+
+    function renderHistoryUI() {
+      if (state.history.length === 0) {
+        historyList.innerHTML = `
+          <div id="empty-history" class="text-center py-16 text-gray-500 text-sm">
+            <i class="ph-duotone ph-clipboard-text text-4xl mb-2 text-surface-600 block"></i>
+            Aucun calcul enregistré.
+          </div>
+        `;
+        historyBadge.classList.add('hidden');
+        return;
+      }
+
+      historyBadge.classList.remove('hidden');
+
+      let html = '';
+      state.history.forEach(item => {
+        const isTime = item.result.type === 'time';
+        const displayVal = isTime ? formatSecondsToMMSS(item.result.seconds) : item.result.value;
+        const badgeLabel = isTime ? 'Temps' : 'Rounds';
+        const badgeColor = isTime ? 'bg-apx/30 text-apx-light border-apx/40' : 'bg-amber-950/40 text-amber-300 border-amber-800/40';
+
+        html += `
+          <div class="history-item bg-surface-800 border border-surface-700/80 rounded-xl p-3 flex flex-col gap-1 hover:border-apx transition cursor-pointer group" data-id="${item.id}">
+            <div class="flex items-center justify-between text-[11px] text-gray-400">
+              <span class="font-mono">${item.timeStr}</span>
+              <span class="px-1.5 py-0.5 rounded border text-[10px] font-semibold ${badgeColor}">${badgeLabel}</span>
+            </div>
+            <div class="font-mono text-xs text-gray-300 truncate">${item.expression}</div>
+            <div class="flex items-center justify-between mt-1 pt-1 border-t border-surface-700/50">
+              <span class="text-xs text-gray-400 group-hover:text-apx-light transition flex items-center gap-1">
+                <i class="ph-bold ph-arrow-bend-down-left"></i> Insérer
+              </span>
+              <span class="font-mono text-lg font-bold text-white group-hover:text-apx-light transition">${displayVal}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      historyList.innerHTML = html;
+
+      // Click listener pour réinjecter le résultat
+      document.querySelectorAll('.history-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = parseInt(el.getAttribute('data-id'), 10);
+          const found = state.history.find(h => h.id === id);
+          if (found) {
+            injectHistoryResult(found.result);
+            toggleDrawer(false);
+            showToast("Résultat réinjecté !");
+          }
+        });
+      });
+    }
+
+    function injectHistoryResult(res) {
+      commitCurrentInputIfNeeded();
+      if (res.type === 'time') {
+        state.tokens.push({
+          type: 'time',
+          seconds: res.seconds,
+          display: formatSecondsToMMSS(res.seconds)
+        });
+        state.inputMode = 'time';
+      } else {
+        state.tokens.push({
+          type: 'number',
+          value: res.value,
+          display: `${res.value}`
+        });
+        state.inputMode = 'number';
+      }
+      state.rawDigits = '';
+      renderExpression();
+      renderCurrentInput();
+      updateModeUI();
+    }
+
+    // --- Contrôle du Tiroir / Modal Historique ---
+
+    function toggleDrawer(open) {
+      if (open) {
+        historyDrawer.classList.remove('translate-x-full');
+        drawerOverlay.classList.remove('hidden');
+        setTimeout(() => drawerOverlay.classList.add('opacity-100'), 10);
+      } else {
+        historyDrawer.classList.add('translate-x-full');
+        drawerOverlay.classList.remove('opacity-100');
+        setTimeout(() => drawerOverlay.classList.add('hidden'), 300);
+      }
+    }
+
+    // --- Écouteurs d'Événements ---
+
+    document.querySelectorAll('.btn-key').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const action = button.getAttribute('data-action');
+        const val = button.getAttribute('data-val');
+
+        // Vibration haptique légère pour mobile si supportée
+        if (navigator.vibrate) {
+          navigator.vibrate(15);
+        }
+
+        switch (action) {
+          case 'digit':
+            handleDigit(val);
+            break;
+          case 'operator':
+            handleOperator(val);
+            break;
+          case 'smart-bracket':
+            handleSmartBracket();
+            break;
+          case 'backspace':
+            handleBackspace();
+            break;
+          case 'all-clear':
+            handleAllClear();
+            break;
+          case 'calculate':
+            handleCalculate();
+            break;
+          case 'toggle-mode':
+            // Bascule rapide entre mode micro-onde MM:SS et mode Rounds/Scalaire
+            state.inputMode = state.inputMode === 'time' ? 'number' : 'time';
+            updateModeUI();
+            break;
+        }
+      });
+    });
+
+    // Bouton de correction rapide directement sous l'écran
+    quickBackspaceBtn.addEventListener('click', () => {
+      if (navigator.vibrate) navigator.vibrate(15);
+      handleBackspace();
+    });
+
+    // Toggle de mode dans la barre du haut
+    toggleInputModeBtn.addEventListener('click', () => {
+      state.inputMode = state.inputMode === 'time' ? 'number' : 'time';
+      updateModeUI();
+    });
+
+    // Tiroir Historique
+    btnToggleHistory.addEventListener('click', () => toggleDrawer(true));
+    btnCloseHistory.addEventListener('click', () => toggleDrawer(false));
+    drawerOverlay.addEventListener('click', () => toggleDrawer(false));
+
+    btnClearHistory.addEventListener('click', () => {
+      state.history = [];
+      saveHistory();
+      renderHistoryUI();
+      showToast("Historique effacé");
+    });
+
+    // Raccourcis clavier physiques (si testé sur PC/tablette avec clavier)
+    window.addEventListener('keydown', (e) => {
+      if (e.key >= '0' && e.key <= '9') {
+        handleDigit(e.key);
+      } else if (e.key === '+' || e.key === '-' || e.key === '*' || e.key === '/') {
+        handleOperator(e.key);
+      } else if (e.key === '(' || e.key === ')') {
+        handleSmartBracket();
+      } else if (e.key === 'Enter' || e.key === '=') {
+        e.preventDefault();
+        handleCalculate();
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        handleAllClear();
+      }
+    });
+
+    // Initialisation
+    window.onload = function() {
+      loadHistory();
+      updateModeUI();
+      renderExpression();
+      renderCurrentInput();
+    };
+  </script>
+</body>
+</html>
